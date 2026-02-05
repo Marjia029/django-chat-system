@@ -6,14 +6,34 @@ User = get_user_model()
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    sender_id = serializers.IntegerField(source='sender.id', read_only=True)
+    recipient_id = serializers.IntegerField(source='recipient.id', read_only=True)
     sender_email = serializers.EmailField(source='sender.email', read_only=True)
     recipient_email = serializers.EmailField(source='recipient.email', read_only=True)
-    
+
     class Meta:
         model = Message
-        fields = ['id', 'sender', 'sender_email', 'recipient', 'recipient_email', 
-                  'content', 'timestamp', 'is_read']
-        read_only_fields = ['sender', 'timestamp']
+        fields = [
+            'id',
+            'sender_id',
+            'sender_email',
+            'recipient_id',
+            'recipient_email',
+            'content',
+            'timestamp',
+            'is_read',
+        ]
+        read_only_fields = [
+            'id',
+            'sender_id',
+            'sender_email',
+            'recipient_id',
+            'recipient_email',
+            'timestamp',
+            'is_read',
+        ]
+
+
 
 
 class ConversationSerializer(serializers.Serializer):

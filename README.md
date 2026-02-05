@@ -136,3 +136,10 @@ If you'd like, I can:
 - Add a short shell script to automate a basic end-to-end test.
 
 Pick one and I'll add it. ✅
+
+---
+
+## Frontend (React + Vite)
+A minimal frontend scaffold is available in `frontend/` (React + Vite + Tailwind). See `frontend/README.md` for setup and usage instructions.
+
+
