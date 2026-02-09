@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q, Max, Count, Case, When
 from django.contrib.auth import get_user_model
 from .models import Message
@@ -9,38 +10,56 @@ from .serializers import MessageSerializer, ConversationSerializer
 
 User = get_user_model()
 
-
-class SendMessageView(generics.CreateAPIView):
-    serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated]
+# class SendMessageView(generics.CreateAPIView):
+#     serializer_class = MessageSerializer
+#     permission_classes = [IsAuthenticated]
+#     parser_classes = (MultiPartParser, FormParser)
     
-    def create(self, request, *args, **kwargs):
-        recipient_id = request.data.get('recipient')
-        content = request.data.get('content')
+#     def create(self, request, *args, **kwargs):
+#         recipient_id = request.data.get('recipient')
+#         content = request.data.get('content', '')
+#         message_type = request.data.get('message_type', 'text')
+#         file = request.FILES.get('file')
         
-        if not recipient_id or not content:
-            return Response(
-                {'error': 'Recipient and content are required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#         if not recipient_id:
+#             return Response(
+#                 {'error': 'Recipient is required'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
         
-        try:
-            recipient = User.objects.get(id=recipient_id)
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'Recipient not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+#         # Validate message has either content or file
+#         if not content and not file:
+#             return Response(
+#                 {'error': 'Message must have either content or file'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
         
-        message = Message.objects.create(
-            sender=request.user,
-            recipient=recipient,
-            content=content
-        )
+#         try:
+#             recipient = User.objects.get(id=recipient_id)
+#         except User.DoesNotExist:
+#             return Response(
+#                 {'error': 'Recipient not found'},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
         
-        serializer = self.get_serializer(message)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
+#         # Create message
+#         message_data = {
+#             'sender': request.user,
+#             'recipient': recipient,
+#             'content': content,
+#             'message_type': message_type,
+#         }
+        
+#         if file:
+#             message_data['file'] = file
+#             message_data['file_name'] = file.name
+#             message_data['file_size'] = file.size
+#             message_data['file_type'] = file.content_type
+        
+#         message = Message.objects.create(**message_data)
+        
+#         serializer = self.get_serializer(message, context={'request': request})
+#         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class ConversationListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -92,22 +111,43 @@ class ConversationListView(APIView):
                 is_read=False
             ).count()
             
+            # Format last message content based on type
+            last_message_content = ''
+            last_message_type = 'text'
+            if last_message:
+                last_message_type = last_message.message_type
+                if last_message.message_type == 'text':
+                    last_message_content = last_message.content
+                elif last_message.message_type == 'image':
+                    last_message_content = '📷 Photo'
+                elif last_message.message_type == 'video':
+                    last_message_content = '🎥 Video'
+                elif last_message.message_type == 'audio':
+                    last_message_content = '🎵 Audio'
+                elif last_message.message_type == 'file':
+                    last_message_content = f'📎 {last_message.file_name or "File"}'
+            
             conversation_list.append({
                 'user_id': other_user.id,
                 'user_email': other_user.email,
                 'user_username': other_user.username,
-                'last_message': last_message.content if last_message else '',
+                'last_message': last_message_content,
                 'last_message_time': last_message.timestamp if last_message else None,
-                'unread_count': unread_count
+                'unread_count': unread_count,
+                'last_message_type': last_message_type
             })
         
         serializer = ConversationSerializer(conversation_list, many=True)
         return Response(serializer.data)
 
-
 class MessageHistoryView(generics.ListAPIView):
     serializer_class = MessageSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
     
     def get_queryset(self):
         user = self.request.user

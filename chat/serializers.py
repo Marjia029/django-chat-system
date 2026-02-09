@@ -4,13 +4,13 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-
 class MessageSerializer(serializers.ModelSerializer):
     sender_id = serializers.IntegerField(source='sender.id', read_only=True)
     recipient_id = serializers.IntegerField(source='recipient.id', read_only=True)
     sender_email = serializers.EmailField(source='sender.email', read_only=True)
     recipient_email = serializers.EmailField(source='recipient.email', read_only=True)
-
+    file_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = Message
         fields = [
@@ -20,6 +20,12 @@ class MessageSerializer(serializers.ModelSerializer):
             'recipient_id',
             'recipient_email',
             'content',
+            'message_type',
+            'file',
+            'file_url',
+            'file_name', 
+            'file_size',
+            'file_type',
             'timestamp',
             'is_read',
         ]
@@ -32,9 +38,14 @@ class MessageSerializer(serializers.ModelSerializer):
             'timestamp',
             'is_read',
         ]
-
-
-
+    
+    def get_file_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
 
 class ConversationSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
@@ -43,3 +54,4 @@ class ConversationSerializer(serializers.Serializer):
     last_message = serializers.CharField()
     last_message_time = serializers.DateTimeField()
     unread_count = serializers.IntegerField()
+    last_message_type = serializers.CharField()

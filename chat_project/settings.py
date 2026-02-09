@@ -194,3 +194,6 @@ CHANNEL_LAYERS = {
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@chatapp.com')
 
+MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
+MEDIA_ROOT = BASE_DIR / os.getenv('MEDIA_ROOT', 'media')
+
