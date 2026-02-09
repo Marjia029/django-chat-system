@@ -23,9 +23,6 @@ class NotificationListView(APIView):
         unseen_notifications = notifications.filter(is_seen=False)
         unseen_count = unseen_notifications.count()
         
-        # Mark all unseen notifications as seen in a single query
-        unseen_notifications.update(is_seen=True)
-        
         serializer = NotificationSerializer(notifications, many=True)
         return Response({
             'notifications': serializer.data,
@@ -61,3 +58,15 @@ class MarkAllNotificationsReadView(APIView):
             is_read=False
         ).update(is_read=True)
         return Response({'message': 'All notifications marked as read'})
+    
+class MarkAllNotificationsSeenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Mark all unseen notifications as seen, but keep is_read as is
+        Notification.objects.filter(
+            user=request.user,
+            is_seen=False
+        ).update(is_seen=True)
+        
+        return Response({'message': 'All notifications marked as seen'})
