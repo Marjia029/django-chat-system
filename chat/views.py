@@ -2,8 +2,9 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.db.models import Q, Max, Count, Case, When
+from django.db.models import Q, Max
 from django.contrib.auth import get_user_model
 from .models import Message
 from .serializers import MessageSerializer, ConversationSerializer
@@ -84,9 +85,12 @@ class ConversationListView(APIView):
                 'unread_count': unread_count,
                 'last_message_type': last_message_type
             })
+            
+        paginator = PageNumberPagination()
+        paginated_conversations = paginator.paginate_queryset(conversation_list, request)
         
-        serializer = ConversationSerializer(conversation_list, many=True)
-        return Response(serializer.data)
+        serializer = ConversationSerializer(paginated_conversations, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 class MessageHistoryView(APIView):
     permission_classes = [IsAuthenticated]

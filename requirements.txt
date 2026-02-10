@@ -1,0 +1,31 @@
+# Core Django
+Django==5.0.1
+djangorestframework==3.14.0
+
+# JWT Authentication
+djangorestframework-simplejwt==5.3.1
+
+# WebSocket Support (Channels)
+channels==4.0.0
+channels-redis==4.1.0
+
+# Redis
+redis==5.0.1
+
+# ASGI Server
+daphne==4.0.0
+
+# CORS Headers
+django-cors-headers==4.3.1
+
+# Environment Variables
+python-decouple==3.8
+
+# Image Processing (for avatar uploads)
+Pillow==10.2.0
+
+# Async Redis Client
+hiredis==2.3.2
+
+# Timezone Support
+pytz==2024.1
