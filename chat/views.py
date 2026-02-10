@@ -9,58 +9,6 @@ from .models import Message
 from .serializers import MessageSerializer, ConversationSerializer
 
 User = get_user_model()
-
-# class SendMessageView(generics.CreateAPIView):
-#     serializer_class = MessageSerializer
-#     permission_classes = [IsAuthenticated]
-#     parser_classes = (MultiPartParser, FormParser)
-    
-#     def create(self, request, *args, **kwargs):
-#         recipient_id = request.data.get('recipient')
-#         content = request.data.get('content', '')
-#         message_type = request.data.get('message_type', 'text')
-#         file = request.FILES.get('file')
-        
-#         if not recipient_id:
-#             return Response(
-#                 {'error': 'Recipient is required'},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-        
-#         # Validate message has either content or file
-#         if not content and not file:
-#             return Response(
-#                 {'error': 'Message must have either content or file'},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-        
-#         try:
-#             recipient = User.objects.get(id=recipient_id)
-#         except User.DoesNotExist:
-#             return Response(
-#                 {'error': 'Recipient not found'},
-#                 status=status.HTTP_404_NOT_FOUND
-#             )
-        
-#         # Create message
-#         message_data = {
-#             'sender': request.user,
-#             'recipient': recipient,
-#             'content': content,
-#             'message_type': message_type,
-#         }
-        
-#         if file:
-#             message_data['file'] = file
-#             message_data['file_name'] = file.name
-#             message_data['file_size'] = file.size
-#             message_data['file_type'] = file.content_type
-        
-#         message = Message.objects.create(**message_data)
-        
-#         serializer = self.get_serializer(message, context={'request': request})
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
 class ConversationListView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -140,27 +88,32 @@ class ConversationListView(APIView):
         serializer = ConversationSerializer(conversation_list, many=True)
         return Response(serializer.data)
 
-class MessageHistoryView(generics.ListAPIView):
-    serializer_class = MessageSerializer
+class MessageHistoryView(APIView):
     permission_classes = [IsAuthenticated]
-    
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
-    
-    def get_queryset(self):
-        user = self.request.user
-        other_user_id = self.kwargs.get('user_id')
-        
-        # Mark messages as read
+
+    def get(self, request, user_id, *args, **kwargs):
+        user = request.user
+        other_user_id = user_id
+
+        # 1. Update logic: Mark incoming messages as read
         Message.objects.filter(
             sender_id=other_user_id,
             recipient=user,
             is_read=False
         ).update(is_read=True)
-        
-        return Message.objects.filter(
+
+        # 2. Fetch logic: Get conversation history
+        queryset = Message.objects.filter(
             Q(sender=user, recipient_id=other_user_id) |
             Q(sender_id=other_user_id, recipient=user)
         ).order_by('timestamp')
+
+        # 3. Serialization logic
+        # Note: We pass the request in context manually here
+        serializer = MessageSerializer(
+            queryset, 
+            many=True, 
+            context={'request': request}
+        )
+
+        return Response(serializer.data, status=status.HTTP_200_OK)

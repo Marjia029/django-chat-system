@@ -1,6 +1,7 @@
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.conf import settings
@@ -231,6 +232,7 @@ class PasswordResetConfirmView(generics.GenericAPIView):
 class UserListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = PageNumberPagination
     
     def get_queryset(self):
         # Return all users except the current user
