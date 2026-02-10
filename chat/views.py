@@ -1,4 +1,4 @@
-from rest_framework import generics, status
+from rest_framework import status, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -12,6 +12,8 @@ from .serializers import MessageSerializer, ConversationSerializer
 User = get_user_model()
 class ConversationListView(APIView):
     permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['username', 'email']
     
     def get(self, request):
         if not request.user or not request.user.is_authenticated:
