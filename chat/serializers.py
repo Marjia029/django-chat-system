@@ -8,6 +8,7 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_id = serializers.IntegerField(source='sender.id', read_only=True)
     recipient_id = serializers.IntegerField(source='recipient.id', read_only=True)
     sender_email = serializers.EmailField(source='sender.email', read_only=True)
+    sender_public_key = serializers.CharField(source='sender.public_key', read_only=True)
     recipient_email = serializers.EmailField(source='recipient.email', read_only=True)
     file_url = serializers.SerializerMethodField()
     
@@ -17,6 +18,7 @@ class MessageSerializer(serializers.ModelSerializer):
             'id',
             'sender_id',
             'sender_email',
+            'sender_public_key',
             'recipient_id',
             'recipient_email',
             'content',
@@ -28,15 +30,18 @@ class MessageSerializer(serializers.ModelSerializer):
             'file_type',
             'timestamp',
             'is_read',
+            'is_encrypted',
         ]
         read_only_fields = [
             'id',
             'sender_id',
             'sender_email',
+            'sender_public_key',
             'recipient_id',
             'recipient_email',
             'timestamp',
             'is_read',
+            'is_encrypted',
         ]
     
     def get_file_url(self, obj):
@@ -55,3 +60,4 @@ class ConversationSerializer(serializers.Serializer):
     last_message_time = serializers.DateTimeField()
     unread_count = serializers.IntegerField()
     last_message_type = serializers.CharField()
+    public_key = serializers.CharField(allow_blank=True, allow_null=True, required=False)

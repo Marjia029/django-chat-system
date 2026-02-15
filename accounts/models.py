@@ -8,6 +8,7 @@ from django.utils import timezone
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     is_email_verified = models.BooleanField(default=False)
+    public_key = models.CharField(max_length=255, blank=True, null=True)  # Base64 encoded public key for E2EE
     
     # OTP fields
     otp_code = models.CharField(max_length=6, blank=True, null=True)

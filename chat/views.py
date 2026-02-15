@@ -84,7 +84,8 @@ class ConversationListView(APIView):
                 'last_message': last_message_content,
                 'last_message_time': last_message.timestamp if last_message else None,
                 'unread_count': unread_count,
-                'last_message_type': last_message_type
+                'last_message_type': last_message_type,
+                'public_key': other_user.public_key or '',
             })
             
         paginator = PageNumberPagination()

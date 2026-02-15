@@ -20,7 +20,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
         
         # Redis client for tracking open chats (per-user set)
-        self.redis = redis.Redis(host='127.0.0.1', port=6379, db=0, decode_responses=True)
+        try:
+            self.redis = redis.Redis(host='127.0.0.1', port=6379, db=0, decode_responses=True)
+            self.redis.ping()
+            print(f"✓ Redis connected successfully for user {self.user.id}")
+        except Exception as e:
+            print(f"✗ Redis connection failed: {e}")
+            self.redis = None
         self.room_name = f'user_{self.user.id}'
         self.room_group_name = f'chat_{self.room_name}'
         
@@ -41,59 +47,84 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
     
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        message_type = data.get('type')
-        
-        if message_type == 'chat_message':
-            recipient_id = data.get('recipient_id')
-            content = data.get('content', '')
-            msg_type = data.get('message_type', 'text')
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
             
-            # Handle file data if present
-            file_data = data.get('file_data')
-            file_name = data.get('file_name')
-            file_type = data.get('file_type')
-            
-            # Save message to database
-            message = await self.save_message(
-                recipient_id, 
-                content, 
-                msg_type,
-                file_data,
-                file_name,
-                file_type
-            )
-            
-            if message:
-                message_data = await self.serialize_message(message)
+            if message_type == 'chat_message':
+                recipient_id = data.get('recipient_id')
+                content = data.get('content', '')
+                msg_type = data.get('message_type', 'text')
+                is_encrypted = data.get('is_encrypted', False)
                 
-                # Send message to sender
-                await self.send(text_data=json.dumps({
-                    'type': 'chat_message',
-                    'message': message_data
-                }))
+                # Handle file data if present
+                file_data = data.get('file_data')
+                file_name = data.get('file_name')
+                file_type = data.get('file_type')
                 
-                # Send message to recipient
-                await self.channel_layer.group_send(
-                    f'chat_user_{recipient_id}',
-                    {
-                        'type': 'chat_message_handler',
-                        'message': message_data
-                    }
+                print(f"[ChatConsumer] Received chat_message from user {self.user.id} to {recipient_id}, type={msg_type}, encrypted={is_encrypted}")
+                
+                # Save message to database
+                message = await self.save_message(
+                    recipient_id, 
+                    content, 
+                    msg_type,
+                    is_encrypted,
+                    file_data,
+                    file_name,
+                    file_type
                 )
-        elif message_type == 'open_chat':
-            other_id = data.get('chat_with')
-            if other_id:
-                # Add to Redis set
-                await sync_to_async(self.redis.sadd)(f'open_chats:{self.user.id}', other_id)
-                # Mark related notifications as seen/read
-                await self.mark_notifications_seen(other_id)
-                await self.send(text_data=json.dumps({'type': 'open_chat_ack', 'chat_with': other_id}))
-        elif message_type == 'close_chat':
-            other_id = data.get('chat_with')
-            if other_id:
-                await sync_to_async(self.redis.srem)(f'open_chats:{self.user.id}', other_id)
-                await self.send(text_data=json.dumps({'type': 'close_chat_ack', 'chat_with': other_id}))
+                
+                if message:
+                    message_data = await self.serialize_message(message)
+                    
+                    # Send message to sender
+                    await self.send(text_data=json.dumps({
+                        'type': 'chat_message',
+                        'message': message_data
+                    }))
+                    
+                    # Send message to recipient
+                    await self.channel_layer.group_send(
+                        f'chat_user_{recipient_id}',
+                        {
+                            'type': 'chat_message_handler',
+                            'message': message_data
+                        }
+                    )
+                else:
+                    print(f"[ChatConsumer] save_message returned None for user {self.user.id} -> {recipient_id}")
+                    await self.send(text_data=json.dumps({
+                        'type': 'error',
+                        'message': 'Failed to save message. Recipient may not exist.'
+                    }))
+            elif message_type == 'open_chat':
+                other_id = data.get('chat_with')
+                if other_id:
+                    # Add to Redis set
+                    await sync_to_async(self.redis.sadd)(f'open_chats:{self.user.id}', other_id)
+                    # Mark related notifications as seen/read
+                    await self.mark_notifications_seen(other_id)
+                    await self.send(text_data=json.dumps({'type': 'open_chat_ack', 'chat_with': other_id}))
+            elif message_type == 'close_chat':
+                other_id = data.get('chat_with')
+                if other_id:
+                    await sync_to_async(self.redis.srem)(f'open_chats:{self.user.id}', other_id)
+                    await self.send(text_data=json.dumps({'type': 'close_chat_ack', 'chat_with': other_id}))
+        except json.JSONDecodeError as e:
+            print(f"[ChatConsumer] Invalid JSON received: {e}")
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Invalid message format'
+            }))
+        except Exception as e:
+            print(f"[ChatConsumer] Error in receive: {e}")
+            import traceback
+            traceback.print_exc()
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': f'Server error: {str(e)}'
+            }))
     
     async def chat_message_handler(self, event):
         message = event['message']
@@ -113,7 +144,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
     
     @database_sync_to_async
-    def save_message(self, recipient_id, content, msg_type, file_data, file_name, file_type):
+    def save_message(self, recipient_id, content, msg_type, is_encrypted, file_data, file_name, file_type):
         try:
             recipient = User.objects.get(id=recipient_id)
             is_read = False
@@ -131,7 +162,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'recipient': recipient,
                 'content': content,
                 'message_type': msg_type,
-                'is_read': is_read
+                'is_read': is_read,
+                'is_encrypted': is_encrypted
             }
             
             # Handle file if present
@@ -167,6 +199,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'id': message.id,
             'sender_id': message.sender.id,
             'sender_email': message.sender.email,
+            'sender_public_key': message.sender.public_key or '',
             'recipient_id': message.recipient.id,
             'content': message.content,
             'message_type': message.message_type,
@@ -176,6 +209,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'file_type': message.file_type,
             'timestamp': message.timestamp.isoformat(),
             'is_read': message.is_read,
+            'is_encrypted': message.is_encrypted,
         }
     
     @database_sync_to_async
