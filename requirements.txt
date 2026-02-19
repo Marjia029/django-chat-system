@@ -1,5 +1,5 @@
 # Core Django
-Django==5.0.1
+Django>=5.1
 djangorestframework==3.14.0
 
 # JWT Authentication
@@ -22,10 +22,10 @@ django-cors-headers==4.3.1
 python-decouple==3.8
 
 # Image Processing (for avatar uploads)
-Pillow==10.2.0
+Pillow>=10.4.0
 
-# Async Redis Client
-hiredis==2.3.2
 
 # Timezone Support
 pytz==2024.1
+
+python-dotenv==1.0.1
